@@ -51,6 +51,7 @@ fn validate(path: &str, definition_path: &str) -> PyResult<bool> {
 fn get_reader_from(path: &str) -> Reader<Box<dyn Read>> {
     let buf_reader = BufReader::new(File::open(Path::new(path)).unwrap());
     if is_gzip_file(path) {
+        println!("File is gzipped");
         let read_capacity = 10 * 1024_usize.pow(2);
         let reader = BufReader::with_capacity(read_capacity, GzDecoder::new(buf_reader));
         Reader::from_reader(Box::new(reader))
@@ -121,7 +122,12 @@ mod tests {
     use crate::validate;
 
     #[test]
-    fn test_validate() {
+    fn test_validate_csv() {
         assert!(validate("test/test_file.csv", "test/test_validations.yml").unwrap());
+    }
+
+    #[test]
+    fn test_validate_csv_gz() {
+        assert!(validate("test/test_file.csv.gz", "test/test_validations.yml").unwrap());
     }
 }
