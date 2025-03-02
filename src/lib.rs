@@ -5,6 +5,7 @@ use std::iter::zip;
 use std::path::Path;
 use csv::Reader;
 use flate2::bufread::GzDecoder;
+use log::info;
 use pyo3::prelude::*;
 use regex::Regex;
 use yaml_rust2::{YamlLoader};
@@ -16,7 +17,7 @@ struct ColumnValidation {
 }
 
 #[pyfunction]
-fn validate(path: &str, definition_path: &str) -> PyResult<bool> {
+fn validate_file(path: &str, definition_path: &str) -> PyResult<bool> {
     let validations = get_validations(definition_path);
 
     // Build the CSV reader
@@ -24,10 +25,10 @@ fn validate(path: &str, definition_path: &str) -> PyResult<bool> {
 
     // First validation: Ensure column names and order are exactly as expected
     if validate_column_names(&mut rdr, &validations) {
-        println!("Columns names and order are correct");
+        info!("Columns names and order are correct");
     }
     else {
-        println!("Expected columns != Real columns");
+        info!("Expected columns != Real columns");
         return Ok(false);
     }
 
@@ -37,13 +38,13 @@ fn validate(path: &str, definition_path: &str) -> PyResult<bool> {
             let value = next_column.0;
             let re = &next_column.1.validation;
             if !re.is_match(value) {
-                println!("Value {:?} doesn't match regex {:?}", value, re);
+                info!("Value {:?} doesn't match regex {:?}", value, re);
                 return Ok(false);
             }
         }
     }
 
-    println!("File matches the validations");
+    info!("File matches the validations");
     Ok(true)
 }
 
@@ -51,7 +52,7 @@ fn validate(path: &str, definition_path: &str) -> PyResult<bool> {
 fn get_reader_from(path: &str) -> Reader<Box<dyn Read>> {
     let buf_reader = BufReader::new(File::open(Path::new(path)).unwrap());
     if is_gzip_file(path) {
-        println!("File is gzipped");
+        info!("File is gzipped");
         let read_capacity = 10 * 1024_usize.pow(2);
         let reader = BufReader::with_capacity(read_capacity, GzDecoder::new(buf_reader));
         Reader::from_reader(Box::new(reader))
@@ -102,10 +103,10 @@ fn validate_column_names(reader: &mut Reader<Box<dyn Read>>, validations: &Vec<C
     let column_names = validations.iter()
         .map(|v| v.column_name.clone())
         .collect::<Vec<String>>();
-    println!("Expected Column Names: {:?}", column_names);
+    info!("Expected Column Names: {:?}", column_names);
 
     let headers: Vec<&str> = reader.headers().unwrap().iter().collect();
-    println!("Actual Column Names: {:?}", headers);
+    info!("Actual Column Names: {:?}", headers);
 
     column_names == headers
 }
@@ -113,21 +114,23 @@ fn validate_column_names(reader: &mut Reader<Box<dyn Read>>, validations: &Vec<C
 /// A Python module implemented in Rust.
 #[pymodule]
 fn csv_validate(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(validate, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_file, m)?)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::validate;
+    use simple_logger::SimpleLogger;
+    use crate::validate_file;
 
     #[test]
     fn test_validate_csv() {
-        assert!(validate("test/test_file.csv", "test/test_validations.yml").unwrap());
+        SimpleLogger::new().init().unwrap();
+        assert!(validate_file("test/test_file.csv", "test/test_validations.yml").unwrap());
     }
 
     #[test]
     fn test_validate_csv_gz() {
-        assert!(validate("test/test_file.csv.gz", "test/test_validations.yml").unwrap());
+        assert!(validate_file("test/test_file.csv.gz", "test/test_validations.yml").unwrap());
     }
 }
