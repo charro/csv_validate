@@ -37,6 +37,8 @@ jobs:
           - runner: ubuntu-latest
             target: ppc64le
     steps:
+      - name: Install libatomic
+        run: sudo apt install -y libatomic1
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
